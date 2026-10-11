@@ -5,13 +5,21 @@ This project uses Wi-Fi CSI, a non invasive, low cost way to estimate heart rate
 This project differs from the original in the sense:
 
 1. I've swapped the MAX30102 sensor with a Galaxy Watch Series 4. As a result the arduino code is removed. The Samsung watch relays the realtime heart rate data over a particular port which I then use inside `watch_hr.py`. The Samsung watch app is not opensourced (yet, because I didn't make it)
-2. The hardcoded constants in `read_and_process_csi.py` are replaced with command line arguments. Also added an option to append the training data instead of starting over every time (So you can work, pause the program, go out for a jog, and resume data collection to collect heart rate data over a wider range of scenarios). Also added an option to stop the data collection gracefully if MAX_SAMPLES isn't specified (create a stop file with `touch stop.collection` to stop data collection)
-   1. `--collect-training-data` instructs the program to collect csi and hr data which will later be used for training.
-   2. `--training-append`. If this flag is not passed then the older training data is overwritten.
-   3. `--max-samples`. Specifies the maximum number of samples that the program should collect during data the data collection phase.
-3. `master_menu.sh`: Makes it simpler to run the project, without you have to remember lots of commands. Execute it and follow the steps in order. Do note that I hardcoded the watch's private IPv4 address in $case 1 of the script so update it. The IPv4 address can be found under wireless debugging under developer options on the Galaxy Watch 4 (It only needs to be updated once!).
-4. `hr_data.txt` is now created under `read_and_process_csi.py` which wasn't being done earlier, even though it's required by the main training script `train.py`, and handled gracefully (along with `training_data.txt`).
-5. Created a `requirements.txt` for easier venv creation. If CUDA isn't being detected, despite drivers being installed then it's probably becaused the `LD_LIBRARY_PATH` isn't being set.
+2. The hardcoded constants in `read_and_process_csi.py` are replaced with command line arguments.
+
+- Added an option to append the training data instead of starting over every time (So you can work, pause the program, go out for a jog, and resume data collection to collect heart rate data over a wider range of scenarios).
+- Added an option to stop the data collection gracefully (create a stop file with `touch stop.collection` to stop data collection)
+- New command line arguments for `read_and_process_csi.py`
+
+1.  `--collect-training-data` instructs the program to collect csi and hr data which will later be used for training.
+2.  `--training-append`. If this flag is not passed then the older training data is overwritten.
+3.  `--max-samples`. Specifies the maximum number of samples that the program should collect during data the data collection phase.
+4.  `master_menu.sh`: Makes it simpler to run the project, without you have to remember lots of commands. Execute it and follow the steps in order.
+
+- Do note that I hardcoded the watch's private IPv4 address in $case 1 of the script so update it. The IPv4 address can be found under wireless debugging under developer options on the Galaxy Watch 4 (It only needs to be updated once!).
+
+2. `hr_data.txt` is now created under `read_and_process_csi.py` which wasn't being done earlier, even though it's required by the main training script `train.py`, and handled gracefully (along with `training_data.txt`).
+3. Created a `requirements.txt` for easier venv creation. If CUDA isn't being detected, despite drivers being installed then it's probably becaused the `LD_LIBRARY_PATH` isn't being set.
 
 The Stress/Lie detection part will be handled via a separate frontend which my friends will work on and I'll link it when it's done.
 

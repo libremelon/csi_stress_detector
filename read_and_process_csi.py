@@ -44,7 +44,7 @@ from tensorflow import keras
 import numpy as np
 
 
-COLLECT_TRAINING_DATA = True
+COLLECT_TRAINING_DATA = False
 MAX_SAMPLES = 5000
 
 # Reduce displayed waveforms to avoid display freezes
@@ -69,8 +69,22 @@ agc_gains = []
 
 if COLLECT_TRAINING_DATA:
     train = open("training_data.txt", 'w')
+    hr_file = open("hr_data.txt", "w")
 else:
     model = keras.models.load_model("csi_hr.keras", safe_mode=False)
+
+def get_latest_bpm(csv_path="watch_hr_log.csv") -> float:
+    try:
+        with open(csv_path, "r", encoding="utf-8") as f:
+            for line in reversed(f.readlines()):
+                line = line.strip()
+                if line and not line.startswith("Timestamp_ISO"):
+                    parts = line.split(",")
+                    if len(parts) >= 3:
+                        return float(parts[2])
+    except Exception:
+        pass
+    return 0.0
 
 def parse_csi_amplitudes(csi_str):
     # Convert the string into a Python list of ints
@@ -250,7 +264,9 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
         shaped = savitzky_golay_smooth(bandpassed, window_length=15, polyorder=3)
 
         if COLLECT_TRAINING_DATA:
+            current_bpm = get_latest_bpm("watch_hr_log.csv")
             train.write(','.join(map(str, shaped)) + '\n')
+            hr_file.write(f"{current_bpm:.2f}\n")
         else:
             shaped_data.append(shaped)
             if len(shaped_data) > 100:

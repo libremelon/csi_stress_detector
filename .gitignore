@@ -4,3 +4,5 @@ csi_data_log.txt
 csi_data.csv
 training_data.txt
 watch_hr_log.csv
+__pycache__/
+hr_data.txt

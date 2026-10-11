@@ -2,4 +2,4 @@ websockets
 numpy
 pyserial
 scipy
-tensorflow
+tensorflow[and-cuda]

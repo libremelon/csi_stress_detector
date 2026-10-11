@@ -45,6 +45,7 @@ import numpy as np
 
 
 COLLECT_TRAINING_DATA = True
+MAX_SAMPLES = 5000
 
 # Reduce displayed waveforms to avoid display freezes
 CSI_VAID_SUBCARRIER_INTERVAL = 1
@@ -182,6 +183,11 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
     frame_num = 0
     shaped_data = []
     while True:
+
+        if frame_num >= MAX_SAMPLES:
+            print("Reached sample limit. Stopping collection.")
+            break
+
         frame_num += 1
 
         strings = str(ser.readline())

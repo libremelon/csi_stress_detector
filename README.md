@@ -1,7 +1,5 @@
 # CSI Stress/Lie detector
 
-A non-invasive, Wi-Fi Channel State Information (CSI) heart rate detection and estimation system using ESP32 microcontrollers, reference heart rate data collection (Samsung Galaxy Watch / MAX3010x), signal filtering, and a TensorFlow LSTM neural network with CUDA acceleration.
-
 This project uses Wi-Fi CSI, a non invasive, low cost way to estimate heart rate based on the principles outlined by the PulseFi research paper. This repository is hardforked from [nickbild/csi_hr](https://github.com/nickbild/csi_hr) and would've been very difficult for me to otherwise implement from scratch.
 
 This project differs from the original in the sense:

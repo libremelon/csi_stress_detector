@@ -199,6 +199,10 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
     shaped_data = []
     while True:
 
+        if os.path.exists("stop.collection"):
+            print("stop.collection detected. Halting training data collection.")
+            break
+
         if frame_num >= MAX_SAMPLES and MAX_SAMPLES != -1:
             print("Reached sample limit. Stopping collection.")
             break

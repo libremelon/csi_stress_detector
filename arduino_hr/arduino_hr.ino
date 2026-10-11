@@ -1,13 +1,13 @@
-#include <Wire.h>
 #include "MAX30105.h"
 #include "heartRate.h"
+#include <Wire.h>
 
 MAX30105 particleSensor;
 
-const byte RATE_SIZE = 4;  // Number of measurements to average.
-byte rates[RATE_SIZE];     // Array of heart rates.
+const byte RATE_SIZE = 4; // Number of measurements to average.
+byte rates[RATE_SIZE];    // Array of heart rates.
 byte rateSpot = 0;
-long lastBeat = 0;  // Time at which the last beat occurred.
+long lastBeat = 0; // Time at which the last beat occurred.
 
 float beatsPerMinute;
 int beatAvg;
@@ -24,9 +24,10 @@ void setup() {
   }
   Serial.println("Place your index finger on the sensor with steady pressure.");
 
-  particleSensor.setup();                     // Configure sensor with default settings
-  particleSensor.setPulseAmplitudeRed(0x0A);  // Turn Red LED to low to indicate sensor is running
-  particleSensor.setPulseAmplitudeGreen(0);   // Turn off Green LED
+  particleSensor.setup(); // Configure sensor with default settings
+  particleSensor.setPulseAmplitudeRed(
+      0x0A); // Turn Red LED to low to indicate sensor is running
+  particleSensor.setPulseAmplitudeGreen(0); // Turn off Green LED
 }
 
 void loop() {
@@ -41,7 +42,7 @@ void loop() {
 
     if (beatsPerMinute < 255 && beatsPerMinute > 20) {
       rates[rateSpot++] = (byte)beatsPerMinute;
-      rateSpot %= RATE_SIZE;                     
+      rateSpot %= RATE_SIZE;
 
       // Calculate average.
       beatAvg = 0;

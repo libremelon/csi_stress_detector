@@ -29,6 +29,7 @@
 # * Predict heart rate using LSTM model.
 ###
 
+import os
 import sys
 import csv
 import json
@@ -45,7 +46,8 @@ import numpy as np
 
 
 COLLECT_TRAINING_DATA = False
-MAX_SAMPLES = 5000
+TRAINING_APPEND = True
+MAX_SAMPLES = -1 # Setting max samples to -1 should disable this setting
 
 # Reduce displayed waveforms to avoid display freezes
 CSI_VAID_SUBCARRIER_INTERVAL = 1
@@ -68,10 +70,17 @@ agc_gains = []
 
 
 if COLLECT_TRAINING_DATA:
-    train = open("training_data.txt", 'w')
-    hr_file = open("hr_data.txt", "w")
+    mode = "a" if TRAINING_APPEND else "w"
+    train = open("training_data.txt", mode)
+    hr_file = open("hr_data.txt", mode)
 else:
     model = keras.models.load_model("csi_hr.keras", safe_mode=False)
+
+def count_nonempty_lines(path):
+    if not os.path.exists(path):
+        return 0
+    with open(path, "r", encoding="utf-8") as f:
+        return sum(1 for line in f if line.strip())
 
 def get_latest_bpm(csv_path="watch_hr_log.csv") -> float:
     try:
@@ -105,7 +114,7 @@ def remove_dc(signal, fs, lowcut=2.0, highcut=5.0, order=3):
     """
     Remove DC and out-of-band noise using a 3rd-order Butterworth band-pass filter.
     Matches the method described in WiHear (2-5 Hz speaking band).
-    
+
     Parameters
     ----------
     signal : array-like
@@ -198,7 +207,7 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
     shaped_data = []
     while True:
 
-        if frame_num >= MAX_SAMPLES:
+        if frame_num >= MAX_SAMPLES and MAX_SAMPLES != -1:
             print("Reached sample limit. Stopping collection.")
             break
 
@@ -263,7 +272,12 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
         # Step 4: Pulse shaping.
         shaped = savitzky_golay_smooth(bandpassed, window_length=15, polyorder=3)
 
-        if COLLECT_TRAINING_DATA:
+        if COLLECT_TRAINING_DATA and TRAINING_APPEND:
+            n_csi = count_nonempty_lines("training_data.txt")
+            n_hr = count_nonempty_lines("hr_data.txt")
+            if n_csi != n_hr:
+                raise RuntimeError(f"Training files are misaligned: {n_csi} CSI rows vs {n_hr} HR rows")
+        elif COLLECT_TRAINING_DATA:
             current_bpm = get_latest_bpm("watch_hr_log.csv")
             train.write(','.join(map(str, shaped)) + '\n')
             hr_file.write(f"{current_bpm:.2f}\n")
@@ -296,6 +310,11 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
             csi_data_complex[-1][i] = complex(csi_raw_data[i * 2 + 1],
                                             csi_raw_data[i * 2])
     ser.close()
+
+    if COLLECT_TRAINING_DATA:
+        train.close()
+        hr_file.close()
+
     return
 
 

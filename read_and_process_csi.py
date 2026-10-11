@@ -45,9 +45,6 @@ from tensorflow import keras
 import numpy as np
 
 
-COLLECT_TRAINING_DATA = False
-TRAINING_APPEND = True
-MAX_SAMPLES = -1 # Setting max samples to -1 should disable this setting
 
 # Reduce displayed waveforms to avoid display freezes
 CSI_VAID_SUBCARRIER_INTERVAL = 1
@@ -69,12 +66,7 @@ fft_gains = []
 agc_gains = []
 
 
-if COLLECT_TRAINING_DATA:
-    mode = "a" if TRAINING_APPEND else "w"
-    train = open("training_data.txt", mode)
-    hr_file = open("hr_data.txt", mode)
-else:
-    model = keras.models.load_model("csi_hr.keras", safe_mode=False)
+
 
 def count_nonempty_lines(path):
     if not os.path.exists(path):
@@ -328,7 +320,21 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--log', dest="log_file", action="store", default="./csi_data_log.txt",
                         help="Save other serial data the bad CSI data to a log file")
 
+    parser.add_argument('--collect-training-data', action='store_true', required=True)
+    parser.add_argument('--training-append', action='store_true', required=True)
+    parser.add_argument('--max-samples', type=int, default=-1)
+
     args = parser.parse_args()
+    COLLECT_TRAINING_DATA = args.collect_training_data
+    TRAINING_APPEND = args.training_append
+    MAX_SAMPLES = args.max_samples
+
+    if COLLECT_TRAINING_DATA:
+        mode = "a" if TRAINING_APPEND else "w"
+        train = open("training_data.txt", mode)
+        hr_file = open("hr_data.txt", mode)
+    else:
+        model = keras.models.load_model("csi_hr.keras", safe_mode=False)
     serial_port = args.port
     file_name = args.store_file
     log_file_name = args.log_file

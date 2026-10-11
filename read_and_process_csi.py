@@ -324,8 +324,8 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--log', dest="log_file", action="store", default="./csi_data_log.txt",
                         help="Save other serial data the bad CSI data to a log file")
 
-    parser.add_argument('--collect-training-data', action='store_true', required=True)
-    parser.add_argument('--training-append', action='store_true', required=True)
+    parser.add_argument('--collect-training-data', action='store_true', default=False)
+    parser.add_argument('--training-append', action='store_true', default=False)
     parser.add_argument('--max-samples', type=int, default=-1)
 
     args = parser.parse_args()

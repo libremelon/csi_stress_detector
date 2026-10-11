@@ -43,7 +43,17 @@ while true; do
             ;;
         3)
             read -p "Enter USB port for receiver (e.g., /dev/ttyUSB0): " USB_PORT
-            run_in_new_tab "Data Collection" "python3 read_and_process_csi.py -p $USB_PORT"
+            read -p "Append to existing training data? [y/N]: " APPEND_TRAINING
+            if [[ "$APPEND_TRAINING" =~ ^[Yy]$ ]]; then
+                APPEND_FLAG="--training-append"
+            else
+                APPEND_FLAG=""
+            fi
+            read -p "Max samples (-1 for unlimited): " MAX_SAMPLES
+            if [[ -z "$MAX_SAMPLES" ]]; then
+                MAX_SAMPLES="-1"
+            fi
+            run_in_new_tab "Data Collection" "python3 read_and_process_csi.py -p \"$USB_PORT\" --collect-training-data $APPEND_FLAG --max-samples $MAX_SAMPLES"
             read -p "Press Enter to continue..."
             ;;
         4)

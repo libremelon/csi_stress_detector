@@ -19,7 +19,7 @@ This project differs from the original in the sense:
 - Do note that I hardcoded the watch's private IPv4 address in $case 1 of the script so update it. The IPv4 address can be found under wireless debugging under developer options on the Galaxy Watch 4 (It only needs to be updated once!).
 
 2. `hr_data.txt` is now created under `read_and_process_csi.py` which wasn't being done earlier, even though it's required by the main training script `train.py`, and handled gracefully (along with `training_data.txt`).
-3. Created a `requirements.txt` for easier venv creation. If CUDA isn't being detected, despite drivers being installed then it's probably becaused the `LD_LIBRARY_PATH` isn't being set.
+3. Created a `requirements.txt` for easier venv creation. If CUDA isn't being detected, despite drivers being installed then it's probably because the `LD_LIBRARY_PATH` isn't being set.
 
 The Stress/Lie detection part will be handled via a separate frontend which my friends will work on and I'll link it when it's done.
 

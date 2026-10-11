@@ -44,7 +44,7 @@ from tensorflow import keras
 import numpy as np
 
 
-COLLECT_TRAINING_DATA = False
+COLLECT_TRAINING_DATA = True
 
 # Reduce displayed waveforms to avoid display freezes
 CSI_VAID_SUBCARRIER_INTERVAL = 1

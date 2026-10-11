@@ -14,7 +14,6 @@ try:
 except ImportError:
     HAS_WEBSOCKETS_LIB = False
 
-
 class HRCalculator:
     def __init__(self, rate_size=4):
         self.rate_size = rate_size
@@ -63,7 +62,7 @@ class HRDataLogger:
 def display_hr_reading(hr: int, accuracy: int, calc: HRCalculator):
     beat_avg = calc.process(hr, accuracy)
     if hr <= 20 or hr >= 255 or accuracy == 0:
-        sys.stdout.write(" Is your finger on the sensor?")
+        sys.stdout.write("Inaccuracte!")
     print(beat_avg)
     sys.stdout.flush()
 
@@ -140,7 +139,6 @@ def main():
     args = parser.parse_args()
 
     print("Initializing...")
-    print("Place your index finger on the sensor with steady pressure.")
 
     logger = HRDataLogger(args.output)
     calc = HRCalculator(rate_size=4)

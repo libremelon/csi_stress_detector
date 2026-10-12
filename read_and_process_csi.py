@@ -197,119 +197,119 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
     
     frame_num = 0
     shaped_data = []
-    while True:
+    try:
+        while True:
 
-        if os.path.exists("stop.collection"):
-            print("stop.collection detected. Halting training data collection.")
-            break
+            if os.path.exists("stop.collection"):
+                print("stop.collection detected. Halting training data collection.")
+                break
 
-        if frame_num >= MAX_SAMPLES and MAX_SAMPLES != -1:
-            print("Reached sample limit. Stopping collection.")
-            break
+            if frame_num >= MAX_SAMPLES and MAX_SAMPLES != -1:
+                print("Reached sample limit. Stopping collection.")
+                break
 
-        frame_num += 1
+            frame_num += 1
 
-        strings = str(ser.readline())
-        if not strings:
-            break
-        strings = strings.lstrip('b\'').rstrip('\\r\\n\'')
-        index = strings.find('CSI_DATA')
+            strings = str(ser.readline())
+            if not strings:
+                break
+            strings = strings.lstrip('b\'').rstrip('\\r\\n\'')
+            index = strings.find('CSI_DATA')
 
-        if index == -1:
-            log_file_fd.write(strings + '\n')
-            log_file_fd.flush()
-            continue
+            if index == -1:
+                log_file_fd.write(strings + '\n')
+                log_file_fd.flush()
+                continue
 
-        csv_reader = csv.reader(StringIO(strings))
-        csi_data = next(csv_reader)
-        csi_data_len = int (csi_data[-3])
-        if len(csi_data) != len(DATA_COLUMNS_NAMES) and len(csi_data) != len(DATA_COLUMNS_NAMES_C5C6):
-            # print("element number is not equal",len(csi_data),len(DATA_COLUMNS_NAMES) )
-            # print(csi_data)
-            log_file_fd.write("element number is not equal\n")
-            log_file_fd.write(strings + '\n')
-            log_file_fd.flush()
-            continue
+            csv_reader = csv.reader(StringIO(strings))
+            csi_data = next(csv_reader)
+            csi_data_len = int (csi_data[-3])
+            if len(csi_data) != len(DATA_COLUMNS_NAMES) and len(csi_data) != len(DATA_COLUMNS_NAMES_C5C6):
+                # print("element number is not equal",len(csi_data),len(DATA_COLUMNS_NAMES) )
+                # print(csi_data)
+                log_file_fd.write("element number is not equal\n")
+                log_file_fd.write(strings + '\n')
+                log_file_fd.flush()
+                continue
 
-        try:
-            csi_raw_data = json.loads(csi_data[-1])
-        except json.JSONDecodeError:
-            # print("data is incomplete")
-            log_file_fd.write("data is incomplete\n")
-            log_file_fd.write(strings + '\n')
-            log_file_fd.flush()
-            continue
-        if csi_data_len != len(csi_raw_data):
-            # print("csi_data_len is not equal",csi_data_len,len(csi_raw_data))
-            log_file_fd.write("csi_data_len is not equal\n")
-            log_file_fd.write(strings + '\n')
-            log_file_fd.flush()
-            continue
+            try:
+                csi_raw_data = json.loads(csi_data[-1])
+            except json.JSONDecodeError:
+                # print("data is incomplete")
+                log_file_fd.write("data is incomplete\n")
+                log_file_fd.write(strings + '\n')
+                log_file_fd.flush()
+                continue
+            if csi_data_len != len(csi_raw_data):
+                # print("csi_data_len is not equal",csi_data_len,len(csi_raw_data))
+                log_file_fd.write("csi_data_len is not equal\n")
+                log_file_fd.write(strings + '\n')
+                log_file_fd.flush()
+                continue
 
-        fft_gain = int(csi_data[6])
-        agc_gain = int(csi_data[7])
-        
-        fft_gains.append(fft_gain)
-        agc_gains.append(agc_gain)
+            fft_gain = int(csi_data[6])
+            agc_gain = int(csi_data[7])
+            
+            fft_gains.append(fft_gain)
+            agc_gains.append(agc_gain)
 
-        csv_writer.writerow(csi_data)
+            csv_writer.writerow(csi_data)
 
-        
-        ###
-        # Pulse-Fi CSI data processing steps.
-        ###
+            
+            ###
+            # Pulse-Fi CSI data processing steps.
+            ###
 
-        # Step 1: Amplitude conversion.
-        amplitudes = parse_csi_amplitudes(csi_data[24])
-        # Step 2: Stationary Noise Removal.
-        dc_removed = remove_dc(amplitudes, fs=20.0)
-        # Step 3: Pulse extraction.
-        bandpassed = butter_bandpass_filter(dc_removed, 0.8, 2.17, 20.0, order=3)
-        # Step 4: Pulse shaping.
-        shaped = savitzky_golay_smooth(bandpassed, window_length=15, polyorder=3)
+            # Step 1: Amplitude conversion.
+            amplitudes = parse_csi_amplitudes(csi_data[24])
+            # Step 2: Stationary Noise Removal.
+            dc_removed = remove_dc(amplitudes, fs=20.0)
+            # Step 3: Pulse extraction.
+            bandpassed = butter_bandpass_filter(dc_removed, 0.8, 2.17, 20.0, order=3)
+            # Step 4: Pulse shaping.
+            shaped = savitzky_golay_smooth(bandpassed, window_length=15, polyorder=3)
 
-        if COLLECT_TRAINING_DATA and TRAINING_APPEND:
-            n_csi = count_nonempty_lines("training_data.txt")
-            n_hr = count_nonempty_lines("hr_data.txt")
-            if n_csi != n_hr:
-                raise RuntimeError(f"Training files are misaligned: {n_csi} CSI rows vs {n_hr} HR rows")
-        elif COLLECT_TRAINING_DATA:
-            current_bpm = get_latest_bpm("watch_hr_log.csv")
-            train.write(','.join(map(str, shaped)) + '\n')
-            hr_file.write(f"{current_bpm:.2f}\n")
-        else:
-            shaped_data.append(shaped)
-            if len(shaped_data) > 100:
-                # At this point, shaped_data contains the latest 100 'shaped' arrays.
-                # These are ready to be fed into the LSTM.
-                shaped_data = shaped_data[1:]
-                # Reshape the data for input to the model.
-                shaped_data_np = np.array(shaped_data, dtype=np.float32)
-                shaped_data_np = shaped_data_np.reshape((1, 100, 192))  # shape: (1, 100, 192)
-                # Make a heart rate prediction.
-                new_prediction = model.predict(shaped_data_np, verbose=0)
-                print(new_prediction[0][0])
+            if COLLECT_TRAINING_DATA:
+                current_bpm = get_latest_bpm("watch_hr_log.csv")
+                train.write(','.join(map(str, shaped)) + '\n')
+                hr_file.write(f"{current_bpm:.2f}\n")
+                train.flush()
+                hr_file.flush()
             else:
-                print("Collected {0} of 100 initial CSI samples.".format(len(shaped_data)))
+                shaped_data.append(shaped)
+                if len(shaped_data) > 100:
+                    # At this point, shaped_data contains the latest 100 'shaped' arrays.
+                    # These are ready to be fed into the LSTM.
+                    shaped_data = shaped_data[1:]
+                    # Reshape the data for input to the model.
+                    shaped_data_np = np.array(shaped_data, dtype=np.float32)
+                    shaped_data_np = shaped_data_np.reshape((1, 100, 192))  # shape: (1, 100, 192)
+                    # Make a heart rate prediction.
+                    new_prediction = model.predict(shaped_data_np, verbose=0)
+                    print(new_prediction[0][0])
+                    sys.stdout.flush()
+                else:
+                    print("Collected {0} of 100 initial CSI samples.".format(len(shaped_data)))
+                    sys.stdout.flush()
 
 
-        # Rotate data to the left
-        # csi_data_array[:-1] = csi_data_array[1:]
-        # csi_data_phase[:-1] = csi_data_phase[1:]
-        csi_data_complex[:-1] = csi_data_complex[1:]
-        agc_gain_data[:-1] = agc_gain_data[1:]
-        fft_gain_data[:-1] = fft_gain_data[1:]
-        agc_gain_data[-1] = agc_gain
-        fft_gain_data[-1] = fft_gain
-        
-        for i in range(csi_data_len // 2):
-            csi_data_complex[-1][i] = complex(csi_raw_data[i * 2 + 1],
-                                            csi_raw_data[i * 2])
-    ser.close()
-
-    if COLLECT_TRAINING_DATA:
-        train.close()
-        hr_file.close()
+            # Rotate data to the left
+            # csi_data_array[:-1] = csi_data_array[1:]
+            # csi_data_phase[:-1] = csi_data_phase[1:]
+            csi_data_complex[:-1] = csi_data_complex[1:]
+            agc_gain_data[:-1] = agc_gain_data[1:]
+            fft_gain_data[:-1] = fft_gain_data[1:]
+            agc_gain_data[-1] = agc_gain
+            fft_gain_data[-1] = fft_gain
+            
+            for i in range(csi_data_len // 2):
+                csi_data_complex[-1][i] = complex(csi_raw_data[i * 2 + 1],
+                                                csi_raw_data[i * 2])
+    finally:
+        ser.close()
+        if COLLECT_TRAINING_DATA:
+            train.close()
+            hr_file.close()
 
     return
 
@@ -334,6 +334,12 @@ if __name__ == '__main__':
     MAX_SAMPLES = args.max_samples
 
     if COLLECT_TRAINING_DATA:
+        if TRAINING_APPEND:
+            n_csi = count_nonempty_lines("training_data.txt")
+            n_hr = count_nonempty_lines("hr_data.txt")
+            if n_csi != n_hr:
+                raise RuntimeError(f"Training files are misaligned: {n_csi} CSI rows vs {n_hr} HR rows")
+            print(f"Appending to existing training data ({n_csi} prior rows detected).")
         mode = "a" if TRAINING_APPEND else "w"
         train = open("training_data.txt", mode)
         hr_file = open("hr_data.txt", mode)

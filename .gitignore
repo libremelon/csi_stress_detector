@@ -10,3 +10,4 @@ csi_hr.keras
 training.stop
 prompt.txt
 backups/
+.watch_ip

@@ -1,6 +1,31 @@
 #!/bin/bash
 
 BACKUP_DIR="backups"
+WATCH_IP_FILE=".watch_ip"
+DEFAULT_WATCH_IP="10.158.237.77"
+
+connect_watch() {
+    local current_ip="$DEFAULT_WATCH_IP"
+    if [ -f "$WATCH_IP_FILE" ]; then
+        local saved_ip
+        saved_ip=$(cat "$WATCH_IP_FILE" 2>/dev/null | tr -d '[:space:]')
+        [ -n "$saved_ip" ] && current_ip="$saved_ip"
+    fi
+
+    read -p "Enter watch IPv4 address [default: $current_ip]: " input_ip
+    local watch_ip="${input_ip:-$current_ip}"
+    echo "$watch_ip" > "$WATCH_IP_FILE"
+
+    read -p "Enter dynamic port for watch: " dyn_port
+    if [ -z "$dyn_port" ]; then
+        echo "Error: Dynamic port cannot be empty."
+        return 1
+    fi
+
+    echo "Connecting to ${watch_ip}:${dyn_port}..."
+    adb connect "${watch_ip}:${dyn_port}"
+    adb -s "${watch_ip}:${dyn_port}" reverse tcp:8765 tcp:8765
+}
 
 run_in_new_tab() {
     local title="$1"
@@ -246,9 +271,7 @@ while true; do
     read -p "Enter choice [1-7]: " choice
     case $choice in
         1)
-            read -p "Enter dynamic port for watch: " DYN_PORT
-            adb connect 10.158.237.77:$DYN_PORT
-            adb -s 10.158.237.77:$DYN_PORT reverse tcp:8765 tcp:8765
+            connect_watch
             read -p "Press Enter to continue..."
             ;;
         2)

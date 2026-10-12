@@ -201,7 +201,11 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
         while True:
 
             if os.path.exists("stop.collection"):
-                print("stop.collection detected. Halting training data collection.")
+                print("stop.collection detected. Halting data collection.")
+                try:
+                    os.remove("stop.collection")
+                except OSError:
+                    pass
                 break
 
             if frame_num >= MAX_SAMPLES and MAX_SAMPLES != -1:
@@ -305,11 +309,24 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
             for i in range(csi_data_len // 2):
                 csi_data_complex[-1][i] = complex(csi_raw_data[i * 2 + 1],
                                                 csi_raw_data[i * 2])
+    except KeyboardInterrupt:
+        print("\n\n[INFO] Stopped by user (Ctrl+C). Saving and closing...")
     finally:
         ser.close()
+        try:
+            log_file_fd.close()
+        except Exception:
+            pass
         if COLLECT_TRAINING_DATA:
             train.close()
             hr_file.close()
+            try:
+                n_csi = count_nonempty_lines("training_data.txt")
+                n_hr = count_nonempty_lines("hr_data.txt")
+                print(f"[INFO] Files saved cleanly: {n_csi} CSI rows, {n_hr} HR rows in dataset.")
+            except Exception:
+                pass
+        print("[INFO] Serial connection closed.")
 
     return
 
@@ -349,4 +366,7 @@ if __name__ == '__main__':
     file_name = args.store_file
     log_file_name = args.log_file
 
-    csi_data_read_parse(serial_port, csv.writer(open(file_name, 'w')), open(log_file_name, 'w'))
+    try:
+        csi_data_read_parse(serial_port, csv.writer(open(file_name, 'w')), open(log_file_name, 'w'))
+    except KeyboardInterrupt:
+        pass

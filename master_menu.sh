@@ -218,17 +218,58 @@ view_backup_status() {
     fi
 }
 
+nuke_training_data() {
+    if [ ! -f "training_data.txt" ] && [ ! -f "hr_data.txt" ]; then
+        echo "No training data files found (already clean)."
+        return 0
+    fi
+
+    echo ""
+    echo "====================================================="
+    echo "  ⚠️   WARNING: NUKE TRAINING DATASET  ⚠️"
+    echo "====================================================="
+    echo "Current dataset to be deleted:"
+    echo "  - training_data.txt ($(count_file_lines "training_data.txt") rows)"
+    echo "  - hr_data.txt       ($(count_file_lines "hr_data.txt") rows)"
+    echo ""
+
+    read -p "Create an automatic safety backup before nuking? [Y/n]: " backup_first
+    if [[ ! "$backup_first" =~ ^[Nn]$ ]]; then
+        create_backup "Pre-nuke-archive"
+    fi
+
+    echo ""
+    read -p "Are you sure you want to permanently delete current data? Type 'yes' or 'nuke' to confirm: " confirm
+    if [[ "$confirm" == "yes" || "$confirm" == "nuke" ]]; then
+        rm -f "training_data.txt" "hr_data.txt"
+        echo "✓ Removed training_data.txt and hr_data.txt."
+
+        if [ -f "watch_hr_log.csv" ] || [ -f "csi_data.csv" ] || [ -f "csi_data_log.txt" ]; then
+            read -p "Also clear raw logs (watch_hr_log.csv, csi_data.csv)? [y/N]: " clear_logs
+            if [[ "$clear_logs" =~ ^[Yy]$ ]]; then
+                rm -f "watch_hr_log.csv" "csi_data.csv" "csi_data_log.txt"
+                echo "✓ Cleared raw log files."
+            fi
+        fi
+        echo ""
+        echo "💥 Training data successfully nuked! You are ready to start fresh."
+    else
+        echo "Nuke operation cancelled. No files were removed."
+    fi
+}
+
 manage_backups() {
     while true; do
         echo ""
-        echo "===== BACKUP / RESTORE MENU ====="
+        echo "===== DATA MANAGEMENT & BACKUPS ====="
         echo "1. Create a new backup now"
         echo "2. Revert to latest backup"
         echo "3. Choose a backup to restore"
         echo "4. View data & backup status"
-        echo "5. Return to main menu"
-        echo "================================"
-        read -p "Enter choice [1-5]: " b_choice
+        echo "5. Nuke training data (start fresh)"
+        echo "6. Return to main menu"
+        echo "====================================="
+        read -p "Enter choice [1-6]: " b_choice
         case $b_choice in
             1)
                 read -p "Enter a label/note for this backup (optional): " b_note
@@ -248,6 +289,10 @@ manage_backups() {
                 read -p "Press Enter to continue..."
                 ;;
             5)
+                nuke_training_data
+                read -p "Press Enter to continue..."
+                ;;
+            6)
                 break
                 ;;
             *)
@@ -263,7 +308,7 @@ while true; do
     echo "1. Watch connection"
     echo "2. Run watch script"
     echo "3. Data collection"
-    echo "4. Backup / Restore training data"
+    echo "4. Manage data (Backup / Restore / Nuke)"
     echo "5. Model training"
     echo "6. Run actual program"
     echo "7. Exit"

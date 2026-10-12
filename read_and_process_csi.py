@@ -191,11 +191,13 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
     count =0
     if ser.isOpen():
         print("open success")
+        ser.reset_input_buffer()
     else:
         print("open failed")
         return
     
     frame_num = 0
+    saved_samples = 0
     shaped_data = []
     try:
         while True:
@@ -208,31 +210,38 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
                     pass
                 break
 
-            if frame_num >= MAX_SAMPLES and MAX_SAMPLES != -1:
-                print("Reached sample limit. Stopping collection.")
-                break
+            if MAX_SAMPLES != -1:
+                current_count = saved_samples if COLLECT_TRAINING_DATA else frame_num
+                if current_count >= MAX_SAMPLES:
+                    print(f"\nReached sample limit ({MAX_SAMPLES} samples). Stopping collection.")
+                    break
 
             frame_num += 1
 
-            strings = str(ser.readline())
-            if not strings:
+            raw_bytes = ser.readline()
+            if not raw_bytes:
                 break
-            strings = strings.lstrip('b\'').rstrip('\\r\\n\'')
-            index = strings.find('CSI_DATA')
+            try:
+                line_str = raw_bytes.decode('utf-8', errors='ignore').strip()
+            except Exception:
+                continue
 
+            index = line_str.find('CSI_DATA')
             if index == -1:
-                log_file_fd.write(strings + '\n')
+                log_file_fd.write(line_str + '\n')
                 log_file_fd.flush()
                 continue
 
-            csv_reader = csv.reader(StringIO(strings))
-            csi_data = next(csv_reader)
-            csi_data_len = int (csi_data[-3])
+            csv_reader = csv.reader(StringIO(line_str))
+            try:
+                csi_data = next(csv_reader)
+            except Exception:
+                continue
+
             if len(csi_data) != len(DATA_COLUMNS_NAMES) and len(csi_data) != len(DATA_COLUMNS_NAMES_C5C6):
                 # print("element number is not equal",len(csi_data),len(DATA_COLUMNS_NAMES) )
-                # print(csi_data)
                 log_file_fd.write("element number is not equal\n")
-                log_file_fd.write(strings + '\n')
+                log_file_fd.write(line_str + '\n')
                 log_file_fd.flush()
                 continue
 
@@ -241,13 +250,19 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
             except json.JSONDecodeError:
                 # print("data is incomplete")
                 log_file_fd.write("data is incomplete\n")
-                log_file_fd.write(strings + '\n')
+                log_file_fd.write(line_str + '\n')
                 log_file_fd.flush()
                 continue
+
+            try:
+                csi_data_len = int(csi_data[-3])
+            except (ValueError, IndexError):
+                continue
+
             if csi_data_len != len(csi_raw_data):
                 # print("csi_data_len is not equal",csi_data_len,len(csi_raw_data))
                 log_file_fd.write("csi_data_len is not equal\n")
-                log_file_fd.write(strings + '\n')
+                log_file_fd.write(line_str + '\n')
                 log_file_fd.flush()
                 continue
 
@@ -265,7 +280,7 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
             ###
 
             # Step 1: Amplitude conversion.
-            amplitudes = parse_csi_amplitudes(csi_data[24])
+            amplitudes = parse_csi_amplitudes(csi_data[-1])
             # Step 2: Stationary Noise Removal.
             dc_removed = remove_dc(amplitudes, fs=20.0)
             # Step 3: Pulse extraction.
@@ -279,6 +294,9 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
                 hr_file.write(f"{current_bpm:.2f}\n")
                 train.flush()
                 hr_file.flush()
+                saved_samples += 1
+                if saved_samples % 10 == 0 or saved_samples == 1:
+                    print(f"\r[Collected {saved_samples} samples | Current Watch HR: {current_bpm:.1f} BPM]", end="", flush=True)
             else:
                 shaped_data.append(shaped)
                 if len(shaped_data) > 100:

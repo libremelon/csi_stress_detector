@@ -30,6 +30,7 @@
 ###
 
 import os
+import time
 import sys
 import csv
 import json
@@ -192,6 +193,8 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
     if ser.isOpen():
         print("open success")
         ser.reset_input_buffer()
+        time.sleep(0.2)
+        ser.readline()  # discard possible partial line
     else:
         print("open failed")
         return
@@ -248,8 +251,28 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
             try:
                 csi_raw_data = json.loads(csi_data[-1])
             except json.JSONDecodeError:
-                # print("data is incomplete")
                 log_file_fd.write("data is incomplete\n")
+                log_file_fd.write(line_str + '\n')
+                log_file_fd.flush()
+                continue
+
+            # A valid CSI line must carry a JSON *array* in its last field.
+            # json.loads() will also return ints/floats/strings/dicts for
+            # malformed lines, which caused the TypeError on len().
+            if not isinstance(csi_raw_data, list):
+                log_file_fd.write(
+                    "csi data payload is not a list (got "
+                    f"{type(csi_raw_data).__name__}: {csi_raw_data!r})\n"
+                )
+                log_file_fd.write(line_str + '\n')
+                log_file_fd.flush()
+                continue
+
+            # Reject odd-length or empty arrays before DSP.
+            if len(csi_raw_data) == 0 or len(csi_raw_data) % 2 != 0:
+                log_file_fd.write(
+                    f"odd/empty csi payload (len={len(csi_raw_data)})\n"
+                )
                 log_file_fd.write(line_str + '\n')
                 log_file_fd.flush()
                 continue

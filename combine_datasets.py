@@ -34,8 +34,10 @@ import sys
 # Configuration  (edit DATASET_DIRS to add/remove folders)
 # ---------------------------------------------------------------------------
 DATASET_DIRS = [
-    "datasets/exerted",
-    "datasets/normal",
+    "datasets/exertion",
+    "datasets/still",
+    "datasets/low-cortisol",
+    "datasets/walk"
 ]
 
 OUTPUT_DIR = "datasets/combined"

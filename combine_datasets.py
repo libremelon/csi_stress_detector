@@ -34,11 +34,11 @@ import sys
 # Configuration  (edit DATASET_DIRS to add/remove folders)
 # ---------------------------------------------------------------------------
 DATASET_DIRS = [
-    "exerted",
-    "normal",
+    "datasets/exerted",
+    "datasets/normal",
 ]
 
-OUTPUT_DIR = "combined"
+OUTPUT_DIR = "datasets/combined"
 
 CSI_FILENAME = "training_data.txt"
 HR_FILENAME = "hr_data.txt"

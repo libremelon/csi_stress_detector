@@ -11,3 +11,4 @@ training.stop
 prompt.txt
 backups/
 .watch_ip
+datasets/

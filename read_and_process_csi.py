@@ -66,6 +66,8 @@ fft_gain_data = np.zeros([CSI_DATA_INDEX], dtype=np.float64)
 fft_gains = []
 agc_gains = []
 
+HR_OUTPUT_PATH = "heart_rate_output.json"
+
 
 
 
@@ -87,6 +89,21 @@ def get_latest_bpm(csv_path="watch_hr_log.csv") -> float:
     except Exception:
         pass
     return 0.0
+
+def write_heart_rate_output(bpm: float, path: str = HR_OUTPUT_PATH) -> None:
+    """Atomically write the latest heart-rate prediction for a frontend to read."""
+    payload = {
+        "timestamp": time.time(),
+        "timestamp_iso": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+        "heart_rate_bpm": float(bpm),
+    }
+    tmp_path = path + ".tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+        os.replace(tmp_path, path)
+    except Exception as e:
+        print(f"[WARN] Failed to write heart-rate output: {e}")
 
 def parse_csi_amplitudes(csi_str):
     # Convert the string into a Python list of ints
@@ -331,8 +348,10 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
                     shaped_data_np = shaped_data_np.reshape((1, 100, 192))  # shape: (1, 100, 192)
                     # Make a heart rate prediction.
                     new_prediction = model.predict(shaped_data_np, verbose=0)
-                    print(new_prediction[0][0])
+                    bpm_value = float(new_prediction[0][0])
+                    print(bpm_value)
                     sys.stdout.flush()
+                    write_heart_rate_output(bpm_value)
                 else:
                     print("Collected {0} of 100 initial CSI samples.".format(len(shaped_data)))
                     sys.stdout.flush()

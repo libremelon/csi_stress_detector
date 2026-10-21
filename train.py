@@ -7,12 +7,16 @@ import datetime
 
 MSE_THRESHOLD = 0.01
 CONTINUE_TRAINING_MODEL = ""
+HR_DATA_PATH = "/content/drive/MyDrive/ecs-data/exerted/hr_data.txt"
+TRAINING_DATA_PATH = "/content/drive/MyDrive/ecs-data/exerted/training_data.txt"
+MODEL_SAVE_PATH = "/content/drive/MyDrive/ecs-data/csi_hr.keras"
+TRAIN_STOP_FILE_PATH = "/content/drive/MyDrive/ecs-data/training.stop"
 
 
 class stopCallback(keras.callbacks.Callback): 
     def on_epoch_end(self, epoch, logs={}):
         val_loss = logs.get('val_loss')
-        if val_loss is not None and val_loss <= MSE_THRESHOLD or os.path.isfile("training.stop"):   
+        if val_loss is not None and val_loss <= MSE_THRESHOLD or os.path.isfile(TRAIN_STOP_FILE_PATH):   
             print("\nReached {0} MSE; stopping training.".format(MSE_THRESHOLD)) 
             self.model.stop_training = True
 
@@ -26,7 +30,7 @@ print("Reading in training data ({0})...".format(datetime.datetime.now()))
 
 # 1. Read HR data first
 raw_hr = []
-with open("hr_data.txt", "r") as f:
+with open(HR_DATA_PATH, "r") as f:
     for line in f:
         cleaned = line.strip()
         if cleaned:
@@ -36,7 +40,7 @@ with open("hr_data.txt", "r") as f:
 EXPECTED_FEATURES = 192
 dropped_lines = 0
 
-with open("training_data.txt", "r") as f:
+with open(TRAINING_DATA_PATH, "r") as f:
     for idx, line in enumerate(f):
         cleaned = line.strip()
         if not cleaned:
@@ -110,5 +114,5 @@ model.fit(
     callbacks=callbacks_list
 )
 
-model.save("csi_hr.keras")
+model.save(MODEL_SAVE_PATH)
 print("Model training complete!")

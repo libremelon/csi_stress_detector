@@ -19,3 +19,4 @@ esp_led/build
 esp_led/.vscode
 esp_led/sdkconfig
 esp_led/sdkconfig.ci
+.led_port

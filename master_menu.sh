@@ -5,6 +5,7 @@ WATCH_IP_FILE=".watch_ip"
 DEFAULT_WATCH_IP="10.158.237.77"
 FRONTEND_DIR="hr_dashboard"
 FRONTEND_PORT=8000
+LED_PORT_FILE=".led_port"
 
 connect_watch() {
     local current_ip="$DEFAULT_WATCH_IP"
@@ -321,6 +322,37 @@ start_frontend_server() {
     fi
 }
 
+start_led_bridge() {
+    if [ ! -f "led_bridge.py" ]; then
+        echo "Error: led_bridge.py not found in this folder."
+        return 1
+    fi
+    if pgrep -f "python3 led_bridge.py" >/dev/null 2>&1; then
+        echo "led_bridge.py is already running. Close its terminal tab first."
+        return 1
+    fi
+    local current_port=""
+    if [ -f "$LED_PORT_FILE" ]; then
+        current_port=$(cat "$LED_PORT_FILE" 2>/dev/null | tr -d '[:space:]')
+    fi
+    local prompt_text="Enter serial port of the LED ESP32 (e.g., /dev/ttyUSB1)"
+    if [ -n "$current_port" ]; then
+        prompt_text="$prompt_text [default: $current_port]"
+    fi
+    read -p "$prompt_text: " input_port
+    local led_port="${input_port:-$current_port}"
+    if [ -z "$led_port" ]; then
+        echo "Error: port cannot be empty."
+        return 1
+    fi
+    if [ ! -e "$led_port" ]; then
+        echo "Error: $led_port does not exist. Is the ESP32 plugged in?"
+        return 1
+    fi
+    echo "$led_port" > "$LED_PORT_FILE"
+    run_in_new_tab "LED Bridge" "python3 led_bridge.py -p $led_port; echo; read -p 'LED bridge stopped. Press Enter to close...'"
+}
+
 while true; do
     clear
     echo "===== SETUP SCRIPT ====="
@@ -331,9 +363,10 @@ while true; do
     echo "5. Model training"
     echo "6. Run actual program"
     echo "7. Start frontend web server (dashboard)"
-    echo "8. Exit"
+    echo "8. Start LED bridge (ESP32 stress LED)"
+    echo "9. Exit"
     echo "======================="
-    read -p "Enter choice [1-8]: " choice
+    read -p "Enter choice [1-9]: " choice
     case $choice in
         1)
             connect_watch
@@ -381,6 +414,10 @@ while true; do
             read -p "Press Enter to continue..."
             ;;
         8)
+            start_led_bridge
+            read -p "Press Enter to continue..."
+            ;;
+        9)
             exit 0
             ;;
         *)

@@ -14,3 +14,8 @@ backups/
 datasets/
 heart_rate_output.json
 models
+esp_led/.cache
+esp_led/build
+esp_led/.vscode
+esp_led/sdkconfig
+esp_led/sdkconfig.ci

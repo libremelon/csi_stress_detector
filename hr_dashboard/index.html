@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heart Rate Dashboard</title>
+<style>
+  :root { --bg:#0f1419; --card:#1a222c; --text:#e6edf3; --muted:#8b98a5; --ok:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px; background:var(--bg); color:var(--text); font-family: system-ui, sans-serif; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  #status { color:var(--muted); font-size:14px; margin-bottom:20px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:16px; margin-bottom:16px; }
+  .card { background:var(--card); border-radius:12px; padding:16px; }
+  .label { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:0.05em; }
+  .value { font-size:44px; font-weight:700; margin:6px 0 10px; }
+  .bar { height:10px; background:#2b3642; border-radius:5px; overflow:hidden; }
+  .fill { height:100%; width:0%; background:var(--ok); transition:width 0.4s, background 0.4s; }
+  svg { width:100%; height:auto; display:block; }
+  footer { color:var(--muted); font-size:12px; margin-top:16px; }
+</style>
+</head>
+<body>
+<h1>Heart Rate Dashboard</h1>
+<div id="status">Waiting for data...</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">Heart rate</div>
+    <div class="value" id="hr">--</div>
+    <div class="label" id="baseline">Baseline: --</div>
+  </div>
+  <div class="card">
+    <div class="label">Deception confidence</div>
+    <div class="value" id="decep">--</div>
+    <div class="bar"><div class="fill" id="decepBar"></div></div>
+  </div>
+  <div class="card">
+    <div class="label">Stress index</div>
+    <div class="value" id="stress">--</div>
+    <div class="bar"><div class="fill" id="stressBar"></div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="label">Heart rate (last 120 readings, dashed line = baseline)</div>
+  <svg id="chart" viewBox="0 0 800 280"></svg>
+</div>
+
+<footer>Heuristic estimate for demonstration only. Heart rate alone cannot reliably detect lying.</footer>
+
+<script>
+const DATA_URL = 'heart_rate_output.json';
+const POLL_MS = 1000;
+const MAX_POINTS = 120;
+const MIN_FOR_BASELINE = 10;
+const SPIKE_FULL_BPM = 15;   // a rise of 15 bpm above baseline = 100% deception confidence
+const REST_BPM = 60;         // average HR at or below this = 0% stress
+const MAX_BPM = 120;         // average HR at or above this = 100% stress
+const STALE_MS = 10000;
+
+const readings = [];
+let lastTimestamp = null;
+let lastChangeMs = Date.now();
+
+function $(id) { return document.getElementById(id); }
+function clamp(x, lo, hi) { return Math.min(hi, Math.max(lo, x)); }
+function mean(a) { return a.reduce(function (s, v) { return s + v; }, 0) / a.length; }
+function median(a) {
+  const s = a.slice().sort(function (p, q) { return p - q; });
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+function setStatus(msg, color) { const el = $('status'); el.textContent = msg; el.style.color = color; }
+
+function parseReading(text) {
+  text = text.trim();
+  let obj;
+  try { obj = JSON.parse(text); }
+  catch (e) {
+    const lines = text.split('\n').filter(function (l) { return l.trim(); });
+    obj = JSON.parse(lines[lines.length - 1]);
+  }
+  if (Array.isArray(obj)) { obj = obj[obj.length - 1]; }
+  return obj;
+}
+
+function computeMetrics() {
+  if (readings.length < MIN_FOR_BASELINE) { return null; }
+  const hrs = readings.map(function (r) { return r.hr; });
+  const baseline = median(hrs.slice(0, -5));      // everything except the newest 5 readings
+  const current = mean(hrs.slice(-3));            // average of newest 3 readings
+  const deception = clamp((current - baseline) / SPIKE_FULL_BPM * 100, 0, 100);
+  const stress = clamp((mean(hrs.slice(-30)) - REST_BPM) / (MAX_BPM - REST_BPM) * 100, 0, 100);
+  return { baseline: baseline, deception: deception, stress: stress };
+}
+
+function setBar(valueId, barId, pct) {
+  $(valueId).textContent = Math.round(pct) + '%';
+  const bar = $(barId);
+  bar.style.width = pct + '%';
+  bar.style.background = pct < 33 ? 'var(--ok)' : (pct < 66 ? 'var(--warn)' : 'var(--bad)');
+}
+
+function drawChart(baseline) {
+  const svg = $('chart');
+  if (readings.length < 2) { svg.innerHTML = ''; return; }
+  const W = 800, H = 280, PL = 50, PR = 10, PT = 10, PB = 20;
+  const plotW = W - PL - PR, plotH = H - PT - PB;
+  const hrs = readings.map(function (r) { return r.hr; });
+  let lo = Math.min.apply(null, hrs), hi = Math.max.apply(null, hrs);
+  if (baseline !== null) { lo = Math.min(lo, baseline); hi = Math.max(hi, baseline); }
+  if (hi - lo < 20) { const mid = (hi + lo) / 2; lo = mid - 10; hi = mid + 10; }
+  lo -= 2; hi += 2;
+  const x = function (i) { return PL + i / (hrs.length - 1) * plotW; };
+  const y = function (v) { return PT + (hi - v) / (hi - lo) * plotH; };
+  let html = '';
+  for (let k = 0; k <= 4; k++) {
+    const v = lo + (hi - lo) * k / 4;
+    html += '<line x1="' + PL + '" y1="' + y(v) + '" x2="' + (W - PR) + '" y2="' + y(v) + '" stroke="#2b3642"/>';
+    html += '<text x="' + (PL - 6) + '" y="' + (y(v) + 4) + '" fill="#8b98a5" font-size="12" text-anchor="end">' + Math.round(v) + '</text>';
+  }
+  if (baseline !== null) {
+    html += '<line x1="' + PL + '" y1="' + y(baseline) + '" x2="' + (W - PR) + '" y2="' + y(baseline) + '" stroke="#d29922" stroke-dasharray="6 4"/>';
+  }
+  const pts = hrs.map(function (v, i) { return x(i).toFixed(1) + ',' + y(v).toFixed(1); }).join(' ');
+  html += '<polyline points="' + pts + '" fill="none" stroke="#58a6ff" stroke-width="2"/>';
+  svg.innerHTML = html;
+}
+
+function render() {
+  if (readings.length) { $('hr').textContent = Math.round(readings[readings.length - 1].hr) + ' bpm'; }
+  const m = computeMetrics();
+  if (m) {
+    setBar('decep', 'decepBar', m.deception);
+    setBar('stress', 'stressBar', m.stress);
+    $('baseline').textContent = 'Baseline: ' + Math.round(m.baseline) + ' bpm';
+  } else {
+    $('decep').textContent = '--';
+    $('stress').textContent = '--';
+    $('decepBar').style.width = '0%';
+    $('stressBar').style.width = '0%';
+    $('baseline').textContent = 'Calibrating ' + readings.length + '/' + MIN_FOR_BASELINE;
+  }
+  drawChart(m ? m.baseline : null);
+}
+
+async function poll() {
+  try {
+    const res = await fetch(DATA_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) { throw new Error('HTTP ' + res.status); }
+    const obj = parseReading(await res.text());
+    const hr = Number(obj.heart_rate_bpm);
+    const t = Number(obj.timestamp);
+    if (!isFinite(hr) || !isFinite(t)) { throw new Error('missing heart_rate_bpm or timestamp'); }
+    if (t !== lastTimestamp) {
+      lastTimestamp = t;
+      lastChangeMs = Date.now();
+      readings.push({ t: t, hr: hr });
+      if (readings.length > MAX_POINTS) { readings.shift(); }
+    }
+    if (Date.now() - lastChangeMs > STALE_MS) {
+      setStatus('No new data for ' + Math.round((Date.now() - lastChangeMs) / 1000) + ' s', '#d29922');
+    } else {
+      setStatus('Live - last reading at ' + (obj.timestamp_iso || ''), '#3fb950');
+    }
+    render();
+  } catch (e) {
+    setStatus('Cannot read ' + DATA_URL + ': ' + e.message, '#f85149');
+  }
+}
+
+poll();
+setInterval(poll, POLL_MS);
+</script>
+</body>
+</html>

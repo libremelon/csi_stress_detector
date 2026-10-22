@@ -3,6 +3,8 @@
 BACKUP_DIR="backups"
 WATCH_IP_FILE=".watch_ip"
 DEFAULT_WATCH_IP="10.158.237.77"
+FRONTEND_DIR="hr_dashboard"
+FRONTEND_PORT=8000
 
 connect_watch() {
     local current_ip="$DEFAULT_WATCH_IP"
@@ -302,6 +304,23 @@ manage_backups() {
     done
 }
 
+start_frontend_server() {
+    if [ ! -d "$FRONTEND_DIR" ]; then
+        echo "Error: $FRONTEND_DIR directory not found."
+        return 1
+    fi
+    if (echo > "/dev/tcp/127.0.0.1/$FRONTEND_PORT") 2>/dev/null; then
+        echo "Port $FRONTEND_PORT is already in use (the dashboard server may already be running)."
+    else
+        run_in_new_tab "Frontend Server" "python3 -m http.server $FRONTEND_PORT --directory $FRONTEND_DIR"
+        sleep 1
+    fi
+    echo "Dashboard URL: http://localhost:$FRONTEND_PORT/index.html"
+    if command -v xdg-open &>/dev/null; then
+        xdg-open "http://localhost:$FRONTEND_PORT/index.html" >/dev/null 2>&1 &
+    fi
+}
+
 while true; do
     clear
     echo "===== SETUP SCRIPT ====="
@@ -311,9 +330,10 @@ while true; do
     echo "4. Manage data (Backup / Restore / Nuke)"
     echo "5. Model training"
     echo "6. Run actual program"
-    echo "7. Exit"
+    echo "7. Start frontend web server (dashboard)"
+    echo "8. Exit"
     echo "======================="
-    read -p "Enter choice [1-7]: " choice
+    read -p "Enter choice [1-8]: " choice
     case $choice in
         1)
             connect_watch
@@ -357,6 +377,10 @@ while true; do
             read -p "Press Enter to continue..."
             ;;
         7)
+            start_frontend_server
+            read -p "Press Enter to continue..."
+            ;;
+        8)
             exit 0
             ;;
         *)

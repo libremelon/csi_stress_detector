@@ -66,7 +66,7 @@ fft_gain_data = np.zeros([CSI_DATA_INDEX], dtype=np.float64)
 fft_gains = []
 agc_gains = []
 
-HR_OUTPUT_PATH = "heart_rate_output.json"
+HR_OUTPUT_PATH = "hr_dashboard/heart_rate_output.json"
 
 
 

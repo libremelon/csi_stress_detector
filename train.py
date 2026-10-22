@@ -9,11 +9,11 @@ import datetime
 
 MSE_THRESHOLD = 0.01
 CONTINUE_TRAINING_MODEL = ""
-HR_DATA_PATH = "/content/drive/MyDrive/ecs-data/exerted/hr_data.txt"
-TRAINING_DATA_PATH = "/content/drive/MyDrive/ecs-data/exerted/training_data.txt"
+HR_DATA_PATH = "/content/drive/MyDrive/ecs-data/combined/hr_data.txt"
+TRAINING_DATA_PATH = "/content/drive/MyDrive/ecs-data/combined/training_data.txt"
 MODEL_SAVE_PATH = "/content/drive/MyDrive/ecs-data/csi_hr.keras"
 TRAIN_STOP_FILE_PATH = "/content/drive/MyDrive/ecs-data/training.stop"
-TOTAL_EPOCHS = 5000                # total, not additional
+TOTAL_EPOCHS = 100                 # total, not additional
 
 CHECKPOINT_DIR = "/content/drive/MyDrive/ecs-data/checkpoints"
 LATEST_CKPT = os.path.join(CHECKPOINT_DIR, "csi_hr_latest.keras")
@@ -36,14 +36,6 @@ class EpochTracker(keras.callbacks.Callback):
         # Write after ModelCheckpoint fires (Keras orders callbacks by list order)
         with open(EPOCH_FILE, "w") as f:
             json.dump({"epoch": epoch}, f)
-
-
-class stopCallback(keras.callbacks.Callback): 
-    def on_epoch_end(self, epoch, logs={}):
-        val_loss = logs.get('val_loss')
-        if val_loss is not None and val_loss <= MSE_THRESHOLD or os.path.isfile(TRAIN_STOP_FILE_PATH):   
-            print("\nReached {0} MSE; stopping training.".format(MSE_THRESHOLD)) 
-            self.model.stop_training = True
 
 
 data = []
@@ -119,26 +111,65 @@ model.summary()
 
 # Prepare the training data.
 data = np.array(data, dtype=np.float32)
+data_hr = np.array(data_hr, dtype=np.float32)
+
+# Chronological split to avoid data leakage: first 80% train, last 20% validation.
+split_idx = int(len(data) * 0.8)
+train_data = data[:split_idx]
+val_data = data[split_idx:]
+train_hr = data_hr[:split_idx]
+val_hr = data_hr[split_idx:]
 
 WINDOW_SIZE = 100
-for i in range(len(data) - WINDOW_SIZE):
-    train_x.append(data[i : i + WINDOW_SIZE])  # shape: (100, 192)
+
+# Build windows for the training split only.
+train_x = []
+train_y = []
+for i in range(len(train_data) - WINDOW_SIZE):
+    train_x.append(train_data[i : i + WINDOW_SIZE])  # shape: (100, 192)
     # Average heart rate across the 100-frame window
-    avg = sum(data_hr[i : i + WINDOW_SIZE]) / WINDOW_SIZE
+    avg = sum(train_hr[i : i + WINDOW_SIZE]) / WINDOW_SIZE
     train_y.append(avg)
 
 train_x = np.asarray(train_x, dtype=np.float32)
 train_y = np.asarray(train_y, dtype=np.float32)
 
+# Build windows for the validation split with an identical loop.
+val_x = []
+val_y = []
+for i in range(len(val_data) - WINDOW_SIZE):
+    val_x.append(val_data[i : i + WINDOW_SIZE])  # shape: (100, 192)
+    # Average heart rate across the 100-frame window
+    avg = sum(val_hr[i : i + WINDOW_SIZE]) / WINDOW_SIZE
+    val_y.append(avg)
+
+val_x = np.asarray(val_x, dtype=np.float32)
+val_y = np.asarray(val_y, dtype=np.float32)
+
+# Z-score normalization using statistics from the training set only.
+train_mean = np.mean(train_x)
+train_std = np.std(train_x)
+train_x = (train_x - train_mean) / (train_std + 1e-7)
+val_x = (val_x - train_mean) / (train_std + 1e-7)
+
 print("Training data X shape: {0}".format(train_x.shape))
 print("Training data Y shape: {0}".format(train_y.shape))
+print("Validation data X shape: {0}".format(val_x.shape))
+print("Validation data Y shape: {0}".format(val_y.shape))
 
 # Train the model.
+early_stopping = keras.callbacks.EarlyStopping(
+    monitor='val_loss',
+    patience=15,
+    restore_best_weights=True,
+)
+
 callbacks_list = [
-    stopCallback(),
+    early_stopping,
     keras.callbacks.ModelCheckpoint(
         filepath=LATEST_CKPT,
-        save_best_only=False,
+        save_best_only=True,
+        monitor='val_loss',
         save_weights_only=False,   # <-- keep optimizer state
         save_freq='epoch',
         verbose=1,
@@ -157,7 +188,7 @@ else:
         epochs=TOTAL_EPOCHS,
         initial_epoch=initial_epoch,
         verbose=2,
-        validation_split=0.2,
+        validation_data=(val_x, val_y),
         callbacks=callbacks_list,
     )
 

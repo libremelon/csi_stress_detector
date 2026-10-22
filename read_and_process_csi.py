@@ -45,7 +45,7 @@ import tensorflow as tf
 from tensorflow import keras
 import numpy as np
 
-
+MODEL_PATH = "models/csi_hr_normal_epoch.keras"
 
 # Reduce displayed waveforms to avoid display freezes
 CSI_VAID_SUBCARRIER_INTERVAL = 1
@@ -421,7 +421,7 @@ if __name__ == '__main__':
         train = open("training_data.txt", mode)
         hr_file = open("hr_data.txt", mode)
     else:
-        model = keras.models.load_model("csi_hr.keras", safe_mode=False)
+        model = keras.models.load_model(MODEL_PATH, safe_mode=False)
     serial_port = args.port
     file_name = args.store_file
     log_file_name = args.log_file

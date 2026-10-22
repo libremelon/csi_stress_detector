@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Reads hr_dashboard/heart_rate_output.json, computes the stress index exactly like
-hr_dashboard/index.html, and sends 'S:<stress>' or 'OFF' to the ESP32 once per second."""
+"""Reads hr_dashboard/heart_rate_output.json, computes the stress index or the deception confidence
+exactly like hr_dashboard/index.html (choose with --metric), and sends 'S:<0-100>' or 'OFF' to the ESP32 once per second."""
 import argparse
 import json
 import math
+import statistics
 import subprocess
 import time
 
@@ -14,6 +15,9 @@ MAX_POINTS = 120
 MEAN_WINDOW = 30
 STALE_SECONDS = 10.0
 SEND_INTERVAL = 1.0
+SPIKE_FULL_BPM = 15.0
+BASELINE_SKIP_LAST = 5
+CURRENT_WINDOW = 3
 
 
 def read_reading(path):
@@ -43,6 +47,8 @@ def main():
     ap.add_argument("-b", "--baud", default="115200")
     ap.add_argument("-f", "--file", default="hr_dashboard/heart_rate_output.json")
     ap.add_argument("--dry-run", action="store_true", help="print only, do not open the serial port")
+    ap.add_argument("-m", "--metric", choices=["stress", "deception"], default="stress",
+                    help="what the LED shows: stress index or deception confidence")
     args = ap.parse_args()
 
     ser = None
@@ -68,10 +74,15 @@ def main():
 
             fresh = last_ts is not None and (now - last_change) <= STALE_SECONDS
             if fresh and len(readings) >= MIN_READINGS:
-                window = readings[-MEAN_WINDOW:]
-                stress = (sum(window) / len(window) - REST_BPM) / (MAX_BPM - REST_BPM) * 100.0
-                stress = max(0.0, min(100.0, stress))
-                line = "S:%.1f\n" % stress
+                if args.metric == "deception":
+                    baseline = statistics.median(readings[:-BASELINE_SKIP_LAST])
+                    current = sum(readings[-CURRENT_WINDOW:]) / CURRENT_WINDOW
+                    value = (current - baseline) / SPIKE_FULL_BPM * 100.0
+                else:
+                    window = readings[-MEAN_WINDOW:]
+                    value = (sum(window) / len(window) - REST_BPM) / (MAX_BPM - REST_BPM) * 100.0
+                value = max(0.0, min(100.0, value))
+                line = "S:%.1f\n" % value
             else:
                 line = "OFF\n"
 

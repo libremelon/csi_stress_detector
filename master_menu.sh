@@ -350,7 +350,13 @@ start_led_bridge() {
         return 1
     fi
     echo "$led_port" > "$LED_PORT_FILE"
-    run_in_new_tab "LED Bridge" "python3 led_bridge.py -p $led_port; echo; read -p 'LED bridge stopped. Press Enter to close...'"
+    local led_metric="stress"
+    read -p "LED should follow: 1) stress  2) deception [default: 1]: " metric_choice
+    if [ "$metric_choice" = "2" ] || [ "$metric_choice" = "deception" ]; then
+        led_metric="deception"
+    fi
+    echo "LED preference: $led_metric"
+    run_in_new_tab "LED Bridge" "python3 led_bridge.py -p $led_port -m $led_metric; echo; read -p 'LED bridge stopped. Press Enter to close...'"
 }
 
 while true; do
@@ -363,7 +369,7 @@ while true; do
     echo "5. Model training"
     echo "6. Run actual program"
     echo "7. Start frontend web server (dashboard)"
-    echo "8. Start LED bridge (ESP32 stress LED)"
+    echo "8. Start LED bridge (ESP32 LED: stress or deception)"
     echo "9. Exit"
     echo "======================="
     read -p "Enter choice [1-9]: " choice
